@@ -1,6 +1,10 @@
-﻿# Nirvana Control
+# Nirvana Control
 
-A lightweight, bloat-free, privacy-first Android companion app for **boAt Nirvana Space** TWS earbuds (< 4 MB).
+<p align="center">
+  <img src="art/logo.png" width="160" alt="Nirvana Control Logo" />
+  <br>
+  <b>Lightweight, bloat-free, privacy-first companion app for boAt Nirvana Space TWS earbuds.</b>
+</p>
 
 ## Architecture & Features
 
