@@ -1,4 +1,4 @@
-﻿package com.nirvana.control.bluetooth
+package com.nirvana.control.bluetooth
 
 import android.annotation.SuppressLint
 import android.bluetooth.BluetoothAdapter
@@ -7,7 +7,7 @@ import android.bluetooth.le.ScanCallback
 import android.bluetooth.le.ScanResult
 import android.bluetooth.le.ScanSettings
 import android.content.Context
-import android.util.Log
+import com.nirvana.control.util.AppLog as Log
 import com.nirvana.control.model.ScannedDevice
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers

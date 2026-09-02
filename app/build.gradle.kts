@@ -4,6 +4,15 @@ plugins {
   alias(libs.plugins.kotlin.serialization)
 }
 
+val appVersionName: String = providers.gradleProperty("versionName")
+    .orElse("1.1.0")
+    .get()
+
+val appVersionCode: Int = providers.gradleProperty("versionCode")
+    .map { it.toIntOrNull() ?: 2 }
+    .orElse(2)
+    .get()
+
 android {
     namespace = "com.nirvana.control"
     compileSdk = 36
@@ -11,8 +20,8 @@ android {
         applicationId = "com.nirvana.control"
         minSdk = 26
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.0.0"
+        versionCode = appVersionCode
+        versionName = appVersionName
     }
 
     buildTypes {

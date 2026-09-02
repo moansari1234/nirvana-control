@@ -1,4 +1,4 @@
-﻿package com.nirvana.control.ui.screens
+package com.nirvana.control.ui.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -26,6 +26,7 @@ fun DashboardScreen(
     onSetAncMode: (com.nirvana.control.model.AncMode) -> Unit,
     onSetGameMode: (Boolean) -> Unit,
     onSetInEarDetection: (Boolean) -> Unit,
+    onEnableBluetooth: () -> Unit,
     onOpenScanner: () -> Unit,
     onConnect: () -> Unit,
     onDisconnect: () -> Unit,
@@ -41,6 +42,49 @@ fun DashboardScreen(
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
+        // Bluetooth Disabled Banner
+        if (!deviceState.isBluetoothEnabled) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = RedDanger.copy(alpha = 0.15f))
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
+                        Text(text = "📡", fontSize = 24.sp)
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column {
+                            Text(
+                                text = "Bluetooth is Turned Off",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = RedDanger
+                            )
+                            Text(
+                                text = "Enable Bluetooth to connect to Nirvana Space",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = TextPrimary
+                            )
+                        }
+                    }
+
+                    Button(
+                        onClick = onEnableBluetooth,
+                        colors = ButtonDefaults.buttonColors(containerColor = RedDanger),
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Text("Turn On", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                    }
+                }
+            }
+        }
+
         // Top Header
         Row(
             modifier = Modifier.fillMaxWidth(),

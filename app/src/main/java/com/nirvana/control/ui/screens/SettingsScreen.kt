@@ -1,4 +1,4 @@
-﻿package com.nirvana.control.ui.screens
+package com.nirvana.control.ui.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -205,6 +205,11 @@ fun SettingsScreen(
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     Text("Privacy Mode", color = TextSecondary, fontSize = 13.sp)
                     Text("100% Offline (Zero Trackers)", color = NeonGreen, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                }
+
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text("Telemetry & Logs", color = TextSecondary, fontSize = 13.sp)
+                    Text("Zero Log Collection (Disabled)", color = NeonGreen, fontWeight = FontWeight.Bold, fontSize = 13.sp)
                 }
 
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {

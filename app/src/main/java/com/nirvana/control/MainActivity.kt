@@ -1,9 +1,13 @@
 ﻿package com.nirvana.control
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothManager
+import android.content.BroadcastReceiver
 import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
@@ -39,11 +43,42 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private val enableBluetoothLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        val btManager = getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager
+        val isEnabled = btManager?.adapter?.isEnabled == true
+        sppManager.setBluetoothEnabled(isEnabled)
+        if (isEnabled) {
+            checkAndAutoConnect()
+        }
+    }
+
+    private val bluetoothStateReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent?.action == BluetoothAdapter.ACTION_STATE_CHANGED) {
+                val state = intent.getIntExtra(BluetoothAdapter.EXTRA_STATE, BluetoothAdapter.ERROR)
+                val isEnabled = state == BluetoothAdapter.STATE_ON
+                sppManager.setBluetoothEnabled(isEnabled)
+                if (isEnabled) {
+                    checkAndAutoConnect()
+                }
+            }
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
         sppManager = BluetrumSppManager.getInstance(this)
         scanner = BluetoothScanner(this)
+
+        val btManager = getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager
+        val isEnabled = btManager?.adapter?.isEnabled == true
+        sppManager.setBluetoothEnabled(isEnabled)
+
+        val filter = IntentFilter(BluetoothAdapter.ACTION_STATE_CHANGED)
+        registerReceiver(bluetoothStateReceiver, filter)
 
         requestRequiredPermissions()
 
@@ -77,6 +112,10 @@ class MainActivity : ComponentActivity() {
                                     onSetAncMode = { sppManager.setAncMode(it) },
                                     onSetGameMode = { sppManager.setGameMode(it) },
                                     onSetInEarDetection = { sppManager.setInEarDetection(it) },
+                                    onEnableBluetooth = {
+                                        val enableBtIntent = Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE)
+                                        enableBluetoothLauncher.launch(enableBtIntent)
+                                    },
                                     onOpenScanner = {
                                         showScannerDialog = true
                                         scanner.startScan()
@@ -135,8 +174,8 @@ class MainActivity : ComponentActivity() {
                                 onDeviceSelected = { device ->
                                     scanner.stopScan()
                                     showScannerDialog = false
-                                    val btManager = getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager
-                                    val remoteDevice = btManager?.adapter?.getRemoteDevice(device.address)
+                                    val mgr = getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager
+                                    val remoteDevice = mgr?.adapter?.getRemoteDevice(device.address)
                                     remoteDevice?.let { sppManager.connect(it) }
                                 },
                                 onDismiss = {
@@ -148,6 +187,25 @@ class MainActivity : ComponentActivity() {
                     }
                 }
             }
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        val btManager = getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager
+        val isEnabled = btManager?.adapter?.isEnabled == true
+        sppManager.setBluetoothEnabled(isEnabled)
+        if (isEnabled && !sppManager.deviceState.value.isConnected) {
+            checkAndAutoConnect()
+        }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        try {
+            unregisterReceiver(bluetoothStateReceiver)
+        } catch (e: Exception) {
+            // Receiver not registered
         }
     }
 
@@ -178,18 +236,27 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    @SuppressLint("MissingPermission")
     private fun checkAndAutoConnect() {
         if (sppManager.deviceState.value.isConnected) return
 
         val btManager = getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager
         val adapter = btManager?.adapter ?: return
 
+        if (!adapter.isEnabled) {
+            sppManager.setBluetoothEnabled(false)
+            return
+        }
+
+        sppManager.setBluetoothEnabled(true)
+
         try {
             val paired = adapter.bondedDevices
             val nirvana = paired?.find {
-                it.name?.contains("nirvana", ignoreCase = true) == true ||
-                it.name?.contains("boat", ignoreCase = true) == true ||
-                it.name?.contains("space", ignoreCase = true) == true
+                val name = it.name ?: ""
+                name.contains("nirvana", ignoreCase = true) ||
+                name.contains("boat", ignoreCase = true) ||
+                name.contains("space", ignoreCase = true)
             }
 
             if (nirvana != null) {

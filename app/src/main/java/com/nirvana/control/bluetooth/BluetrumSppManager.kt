@@ -1,11 +1,11 @@
-﻿package com.nirvana.control.bluetooth
+package com.nirvana.control.bluetooth
 
 import android.annotation.SuppressLint
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothSocket
 import android.content.Context
-import android.util.Log
+import com.nirvana.control.util.AppLog as Log
 import com.nirvana.control.model.AncMode
 import com.nirvana.control.model.ConnectionState
 import com.nirvana.control.model.DeviceState
@@ -318,6 +318,13 @@ class BluetrumSppManager private constructor(private val context: Context) {
             // Restore default Play/Pause for single tap
             setTouchGesture(TouchGesture.LEFT_SINGLE_TAP, KeyFunction.PLAY_PAUSE)
             setTouchGesture(TouchGesture.RIGHT_SINGLE_TAP, KeyFunction.PLAY_PAUSE)
+        }
+    }
+
+    fun setBluetoothEnabled(enabled: Boolean) {
+        _deviceState.update { it.copy(isBluetoothEnabled = enabled) }
+        if (!enabled) {
+            disconnect()
         }
     }
 

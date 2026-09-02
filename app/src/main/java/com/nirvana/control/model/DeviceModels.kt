@@ -1,4 +1,4 @@
-﻿package com.nirvana.control.model
+package com.nirvana.control.model
 
 enum class ConnectionState {
     DISCONNECTED,
@@ -116,7 +116,8 @@ data class DeviceState(
     val headYaw: Float = 0f,
     val headPitch: Float = 0f,
     val autoConnectEnabled: Boolean = true,
-    val accidentalTouchGuard: Boolean = false
+    val accidentalTouchGuard: Boolean = false,
+    val isBluetoothEnabled: Boolean = true
 ) {
     val isConnected: Boolean get() = connectionState == ConnectionState.CONNECTED
 
@@ -142,7 +143,8 @@ data class DeviceState(
                 headYaw == other.headYaw &&
                 headPitch == other.headPitch &&
                 autoConnectEnabled == other.autoConnectEnabled &&
-                accidentalTouchGuard == other.accidentalTouchGuard
+                accidentalTouchGuard == other.accidentalTouchGuard &&
+                isBluetoothEnabled == other.isBluetoothEnabled
     }
 
     override fun hashCode(): Int {
@@ -166,6 +168,7 @@ data class DeviceState(
         result = 31 * result + headPitch.hashCode()
         result = 31 * result + autoConnectEnabled.hashCode()
         result = 31 * result + accidentalTouchGuard.hashCode()
+        result = 31 * result + isBluetoothEnabled.hashCode()
         return result
     }
 }
