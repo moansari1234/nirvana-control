@@ -14,6 +14,7 @@ import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
@@ -49,7 +50,7 @@ class MainActivity : ComponentActivity() {
         ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
         val allGranted = permissions.values.all { it }
-        Log.i(TAG, "Permissions result: allGranted=, permissions=")
+        Log.i(TAG, "Permissions result: allGranted=$allGranted, permissions=$permissions")
         if (allGranted) {
             refreshBondedDevices()
             checkAndAutoConnect()
@@ -61,7 +62,7 @@ class MainActivity : ComponentActivity() {
     ) { result ->
         val btManager = getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager
         val isEnabled = btManager?.adapter?.isEnabled == true
-        Log.i(TAG, "Bluetooth enable activity result: isEnabled=")
+        Log.i(TAG, "Bluetooth enable activity result: isEnabled=$isEnabled")
         sppManager.setBluetoothEnabled(isEnabled)
         if (isEnabled) {
             refreshBondedDevices()
@@ -74,7 +75,7 @@ class MainActivity : ComponentActivity() {
             if (intent?.action == BluetoothAdapter.ACTION_STATE_CHANGED) {
                 val state = intent.getIntExtra(BluetoothAdapter.EXTRA_STATE, BluetoothAdapter.ERROR)
                 val isEnabled = state == BluetoothAdapter.STATE_ON
-                Log.i(TAG, "BluetoothAdapter state changed:  (enabled=)")
+                Log.i(TAG, "BluetoothAdapter state changed: $state (enabled=$isEnabled)")
                 sppManager.setBluetoothEnabled(isEnabled)
                 if (isEnabled) {
                     refreshBondedDevices()
@@ -93,7 +94,7 @@ class MainActivity : ComponentActivity() {
 
         val btManager = getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager
         val isEnabled = btManager?.adapter?.isEnabled == true
-        Log.i(TAG, "Initial Bluetooth state: enabled=")
+        Log.i(TAG, "Initial Bluetooth state: enabled=$isEnabled")
         sppManager.setBluetoothEnabled(isEnabled)
 
         val filter = IntentFilter(BluetoothAdapter.ACTION_STATE_CHANGED)
@@ -132,7 +133,9 @@ class MainActivity : ComponentActivity() {
                                     deviceState = deviceState,
                                     pairedDevices = bondedDevices,
                                     onSelectDevice = { device ->
-                                        Log.i(TAG, "User clicked to connect device:  []")
+                                        val name = device.name ?: "Nirvana Space"
+                                        Log.i(TAG, "User tapped to connect device: $name [${device.address}]")
+                                        Toast.makeText(this@MainActivity, "Connecting to $name...", Toast.LENGTH_SHORT).show()
                                         sppManager.connect(device)
                                     },
                                     onSetAncMode = { sppManager.setAncMode(it) },
@@ -264,7 +267,7 @@ class MainActivity : ComponentActivity() {
         }
 
         if (needed.isNotEmpty()) {
-            Log.i(TAG, "Requesting runtime permissions: ")
+            Log.i(TAG, "Requesting runtime permissions: $needed")
             permissionLauncher.launch(needed.toTypedArray())
         } else {
             Log.i(TAG, "All required permissions already granted.")
@@ -279,9 +282,12 @@ class MainActivity : ComponentActivity() {
             val btManager = getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager
             val bonded = btManager?.adapter?.bondedDevices?.toList() ?: emptyList()
             bondedDevicesState.value = bonded
-            Log.i(TAG, "Refreshed bonded devices list ( devices)")
+            Log.i(TAG, "Refreshed bonded devices list (${bonded.size} devices):")
+            bonded.forEach { dev ->
+                Log.i(TAG, "  -> Paired: '${dev.name}' [${dev.address}]")
+            }
         } catch (e: Exception) {
-            Log.w(TAG, "Could not query bonded devices: ")
+            Log.w(TAG, "Could not query bonded devices: ${e.message}")
         }
     }
 
@@ -310,12 +316,12 @@ class MainActivity : ComponentActivity() {
 
         try {
             val paired = adapter.bondedDevices ?: emptySet()
-            Log.i(TAG, "Inspecting  bonded devices in system:")
+            Log.i(TAG, "Inspecting ${paired.size} bonded devices in system:")
             paired.forEach { dev ->
-                Log.i(TAG, "  -> Bonded device: '' [] type= bondState=")
+                Log.i(TAG, "  -> Bonded device: '${dev.name}' [${dev.address}] type=${dev.type} bondState=${dev.bondState}")
             }
 
-            // 1. Try name heuristic match
+            // 1. Try name heuristic match (supports "Nirvana Space", "38's Nirvana Space", etc.)
             var candidateDevice: BluetoothDevice? = paired.find {
                 val name = it.name ?: ""
                 name.contains("nirvana", ignoreCase = true) ||
@@ -330,20 +336,20 @@ class MainActivity : ComponentActivity() {
                         if (profile == BluetoothProfile.A2DP) {
                             val a2dp = proxy as? BluetoothA2dp
                             val connectedA2dp = a2dp?.connectedDevices ?: emptyList()
-                            Log.i(TAG, "A2DP Profile active! Currently connected audio devices: ")
+                            Log.i(TAG, "A2DP Profile active! Currently connected audio devices: ${connectedA2dp.size}")
                             connectedA2dp.forEach { d ->
-                                Log.i(TAG, "  -> Active A2DP device: '' []")
+                                Log.i(TAG, "  -> Active A2DP device: '${d.name}' [${d.address}]")
                             }
 
                             // If no device matched by name but an A2DP device is connected, connect to it!
                             if (candidateDevice == null && connectedA2dp.isNotEmpty()) {
                                 val a2dpDevice = connectedA2dp[0]
-                                Log.i(TAG, "Auto-targeting active A2DP device: '' []")
+                                Log.i(TAG, "Auto-targeting active A2DP device: '${a2dpDevice.name}' [${a2dpDevice.address}]")
                                 sppManager.connect(a2dpDevice)
                             }
                         }
                     } catch (e: Exception) {
-                        Log.e(TAG, "Error in A2DP profile callback: ", e)
+                        Log.e(TAG, "Error in A2DP profile callback: ${e.message}", e)
                     } finally {
                         try {
                             adapter.closeProfileProxy(BluetoothProfile.A2DP, proxy)
@@ -357,15 +363,15 @@ class MainActivity : ComponentActivity() {
             }, BluetoothProfile.A2DP)
 
             if (candidateDevice != null) {
-                Log.i(TAG, "Auto-connecting to detected Nirvana Space candidate: '' []")
+                Log.i(TAG, "Auto-connecting to detected Nirvana Space candidate: '${candidateDevice.name}' [${candidateDevice.address}]")
                 sppManager.connect(candidateDevice)
             } else {
                 Log.w(TAG, "No device matching 'nirvana'/'boat'/'space' found. User can select from paired list.")
             }
         } catch (e: SecurityException) {
-            Log.e(TAG, "SecurityException while querying bonded devices: ", e)
+            Log.e(TAG, "SecurityException while querying bonded devices: ${e.message}", e)
         } catch (e: Exception) {
-            Log.e(TAG, "Exception during checkAndAutoConnect: ", e)
+            Log.e(TAG, "Exception during checkAndAutoConnect: ${e.message}", e)
         }
     }
 }

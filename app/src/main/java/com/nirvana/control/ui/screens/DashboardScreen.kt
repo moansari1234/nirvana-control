@@ -1,4 +1,4 @@
-﻿package com.nirvana.control.ui.screens
+package com.nirvana.control.ui.screens
 
 import android.annotation.SuppressLint
 import android.bluetooth.BluetoothDevice
@@ -231,7 +231,7 @@ fun DashboardScreen(
                         }
                     }
 
-                    Divider(color = DarkSurface, thickness = 1.dp)
+                    HorizontalDivider(color = DarkSurface, thickness = 1.dp)
 
                     // Diagnostic Logs Quick Buttons
                     Row(

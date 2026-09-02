@@ -1,4 +1,4 @@
-package com.nirvana.control.bluetooth
+﻿package com.nirvana.control.bluetooth
 
 import android.annotation.SuppressLint
 import android.bluetooth.BluetoothAdapter
@@ -53,78 +53,116 @@ class BluetrumSppManager private constructor(private val context: Context) {
     private var outputStream: OutputStream? = null
 
     private var readerJob: Job? = null
+    private var connectJob: Job? = null
 
     @SuppressLint("MissingPermission")
     fun connect(device: BluetoothDevice) {
+        val devName = device.name ?: "Nirvana Space"
+        val devAddress = device.address
+
+        Log.i(TAG, "connect() invoked for '$devName' [$devAddress]")
+
         if (_deviceState.value.connectionState == ConnectionState.CONNECTING ||
             _deviceState.value.connectionState == ConnectionState.CONNECTED
         ) {
-            if (_deviceState.value.deviceAddress == device.address && socket?.isConnected == true) {
-                Log.i(TAG, "Already connected to  ()")
+            if (_deviceState.value.deviceAddress == devAddress && socket?.isConnected == true) {
+                Log.i(TAG, "Already connected to $devName ($devAddress)")
                 return
             }
             disconnect()
         }
 
-        val devName = device.name ?: "boAt Nirvana Space"
-        Log.i(TAG, "Starting connection sequence to '' []")
-
         _deviceState.update {
             it.copy(
                 connectionState = ConnectionState.CONNECTING,
                 deviceName = devName,
-                deviceAddress = device.address
+                deviceAddress = devAddress
             )
         }
 
-        scope.launch {
-            // Crucial: Cancel active Bluetooth discovery prior to RFCOMM connection
+        connectJob?.cancel()
+        connectJob = scope.launch {
+            // 1. Cancel active discovery so RFCOMM connection bandwidth isn't starved
             try {
                 val btManager = context.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager
-                btManager?.adapter?.cancelDiscovery()
-                Log.d(TAG, "Discovery cancelled prior to RFCOMM connection")
+                val adapter = btManager?.adapter
+                if (adapter?.isDiscovering == true) {
+                    adapter.cancelDiscovery()
+                    Log.d(TAG, "Cancelled ongoing Bluetooth discovery prior to connect")
+                }
             } catch (e: Exception) {
-                Log.w(TAG, "Could not cancel discovery: ")
+                Log.w(TAG, "Could not check/cancel discovery: ${e.message}")
+            }
+
+            // 2. Fetch and log device SDP UUIDs
+            try {
+                device.fetchUuidsWithSdp()
+                val uuids = device.uuids
+                if (uuids != null && uuids.isNotEmpty()) {
+                    Log.i(TAG, "Discovered ${uuids.size} SDP UUIDs on device:")
+                    uuids.forEach { u -> Log.i(TAG, "  -> UUID: ${u.uuid}") }
+                } else {
+                    Log.d(TAG, "No cached SDP UUIDs on device yet.")
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "Error fetching device UUIDs: ${e.message}")
+            }
+
+            // 3. Build candidate connection creators
+            val connectionAttempts = mutableListOf<Pair<String, () -> BluetoothSocket>>()
+
+            // Insecure & Secure with Custom Bluetrum UUID (Official boAt Nirvana Space UUID!)
+            connectionAttempts.add("Insecure Custom SPP (${BluetrumConstants.CUSTOM_SPP_UUID})" to {
+                device.createInsecureRfcommSocketToServiceRecord(BluetrumConstants.CUSTOM_SPP_UUID)
+            })
+            connectionAttempts.add("Insecure Default SPP (${BluetrumConstants.DEFAULT_SPP_UUID})" to {
+                device.createInsecureRfcommSocketToServiceRecord(BluetrumConstants.DEFAULT_SPP_UUID)
+            })
+            connectionAttempts.add("Secure Custom SPP (${BluetrumConstants.CUSTOM_SPP_UUID})" to {
+                device.createRfcommSocketToServiceRecord(BluetrumConstants.CUSTOM_SPP_UUID)
+            })
+            connectionAttempts.add("Secure Default SPP (${BluetrumConstants.DEFAULT_SPP_UUID})" to {
+                device.createRfcommSocketToServiceRecord(BluetrumConstants.DEFAULT_SPP_UUID)
+            })
+
+            // Reflection fallback on standard RFCOMM channels
+            for (channel in 1..3) {
+                connectionAttempts.add("Reflection Insecure Channel $channel" to {
+                    val m = device.javaClass.getMethod("createInsecureRfcommSocket", Int::class.javaPrimitiveType)
+                    m.invoke(device, channel) as BluetoothSocket
+                })
+                connectionAttempts.add("Reflection Secure Channel $channel" to {
+                    val m = device.javaClass.getMethod("createRfcommSocket", Int::class.javaPrimitiveType)
+                    m.invoke(device, channel) as BluetoothSocket
+                })
             }
 
             var connectedSocket: BluetoothSocket? = null
             var connectedMethod = ""
 
-            val connectionAttempts = listOf(
-                "Insecure SPP (Default UUID)" to { device.createInsecureRfcommSocketToServiceRecord(BluetrumConstants.DEFAULT_SPP_UUID) },
-                "Secure SPP (Default UUID)" to { device.createRfcommSocketToServiceRecord(BluetrumConstants.DEFAULT_SPP_UUID) },
-                "Insecure Custom SPP (Bluetrum UUID)" to { device.createInsecureRfcommSocketToServiceRecord(BluetrumConstants.CUSTOM_SPP_UUID) },
-                "Secure Custom SPP (Bluetrum UUID)" to { device.createRfcommSocketToServiceRecord(BluetrumConstants.CUSTOM_SPP_UUID) },
-                "Reflection Insecure Channel 1" to {
-                    val m = device.javaClass.getMethod("createInsecureRfcommSocket", Int::class.javaPrimitiveType)
-                    m.invoke(device, 1) as BluetoothSocket
-                },
-                "Reflection Secure Channel 1" to {
-                    val m = device.javaClass.getMethod("createRfcommSocket", Int::class.javaPrimitiveType)
-                    m.invoke(device, 1) as BluetoothSocket
-                }
-            )
-
             for ((methodName, creator) in connectionAttempts) {
+                var testSocket: BluetoothSocket? = null
                 try {
-                    Log.d(TAG, "Trying connection method: ...")
-                    val testSocket = creator()
+                    Log.d(TAG, "Attempting connection via $methodName...")
+                    testSocket = creator()
                     testSocket.connect()
                     connectedSocket = testSocket
                     connectedMethod = methodName
-                    Log.i(TAG, ">>> SUCCESS! Connected via  <<<")
+                    Log.i(TAG, ">>> SUCCESS! Connected to $devName via $methodName <<<")
                     break
                 } catch (e: Exception) {
-                    Log.w(TAG, "Method '' failed: : ")
+                    Log.w(TAG, "Method '$methodName' failed: ${e.javaClass.simpleName} - ${e.message}")
                     try {
-                        // Sleep briefly between socket connection retries
-                        delay(200)
+                        testSocket?.close()
+                    } catch (ignored: Exception) {}
+                    try {
+                        delay(150)
                     } catch (ignored: Exception) {}
                 }
             }
 
             if (connectedSocket == null) {
-                Log.e(TAG, "All 6 connection methods failed for  []. Earbuds may need to be in ear or reconnect Bluetooth audio.")
+                Log.e(TAG, "All ${connectionAttempts.size} socket connection attempts failed for $devName [$devAddress].")
                 disconnect()
                 return@launch
             }
@@ -146,7 +184,7 @@ class BluetrumSppManager private constructor(private val context: Context) {
                 Log.i(TAG, "Sending initial Device Info Query...")
                 refreshDeviceInfo()
             } catch (e: Exception) {
-                Log.e(TAG, "Error initializing socket streams: ", e)
+                Log.e(TAG, "Error initializing socket streams: ${e.message}", e)
                 disconnect()
             }
         }
@@ -154,6 +192,9 @@ class BluetrumSppManager private constructor(private val context: Context) {
 
     fun disconnect() {
         Log.i(TAG, "Disconnecting RFCOMM socket...")
+        connectJob?.cancel()
+        connectJob = null
+
         readerJob?.cancel()
         readerJob = null
 
@@ -162,7 +203,7 @@ class BluetrumSppManager private constructor(private val context: Context) {
             outputStream?.close()
             socket?.close()
         } catch (e: Exception) {
-            Log.e(TAG, "Error closing socket: ")
+            Log.e(TAG, "Error closing socket: ${e.message}")
         }
 
         inputStream = null
@@ -187,14 +228,14 @@ class BluetrumSppManager private constructor(private val context: Context) {
                     if (bytesRead > 0) {
                         val packetBytes = buffer.copyOf(bytesRead)
                         val hex = packetBytes.joinToString(" ") { "%02X".format(it) }
-                        Log.d(TAG, "RX RAW [ bytes]: ")
+                        Log.d(TAG, "RX RAW [$bytesRead bytes]: $hex")
                         protocol.parseStream(packetBytes) { packet ->
                             handlePacket(packet)
                         }
                     }
                 } catch (e: IOException) {
                     if (isActive) {
-                        Log.e(TAG, "Socket read error: ")
+                        Log.e(TAG, "Socket read error: ${e.message}")
                         disconnect()
                     }
                     break
@@ -204,7 +245,7 @@ class BluetrumSppManager private constructor(private val context: Context) {
     }
 
     private fun handlePacket(packet: BluetrumPacket) {
-        Log.d(TAG, "Received packet Cmd=, Type=, PayloadLen=")
+        Log.d(TAG, "Received packet Cmd=${packet.command}, Type=${packet.commandType}, PayloadLen=${packet.payload.size}")
         when (packet.command) {
             BluetrumConstants.CMD_DEVICE_INFO,
             BluetrumConstants.CMD_NOTIFY -> {
@@ -215,28 +256,28 @@ class BluetrumSppManager private constructor(private val context: Context) {
             BluetrumConstants.CMD_ANC_MODE -> {
                 if (packet.payload.isNotEmpty()) {
                     val mode = AncMode.fromValue(packet.payload[0])
-                    Log.i(TAG, "ANC Mode updated: ")
+                    Log.i(TAG, "ANC Mode updated: $mode")
                     _deviceState.update { it.copy(ancMode = mode) }
                 }
             }
             BluetrumConstants.CMD_SPATIAL_AUDIO -> {
                 if (packet.payload.isNotEmpty()) {
                     val mode = SpatialAudioMode.fromValue(packet.payload[0])
-                    Log.i(TAG, "Spatial Audio Mode updated: ")
+                    Log.i(TAG, "Spatial Audio Mode updated: $mode")
                     _deviceState.update { it.copy(spatialAudioMode = mode) }
                 }
             }
             BluetrumConstants.CMD_WORK_MODE -> {
                 if (packet.payload.isNotEmpty()) {
                     val isGameMode = packet.payload[0].toInt() == 1
-                    Log.i(TAG, "Game Mode updated: ")
+                    Log.i(TAG, "Game Mode updated: $isGameMode")
                     _deviceState.update { it.copy(gameMode = isGameMode) }
                 }
             }
             BluetrumConstants.CMD_EQ -> {
                 if (packet.payload.size >= 10) {
                     val gains = IntArray(10) { packet.payload[it].toInt() }
-                    Log.i(TAG, "EQ Gains updated: ")
+                    Log.i(TAG, "EQ Gains updated: ${gains.joinToString()}")
                     _deviceState.update { it.copy(equalizerGains = gains) }
                 }
             }
@@ -380,7 +421,7 @@ class BluetrumSppManager private constructor(private val context: Context) {
     }
 
     fun setBluetoothEnabled(enabled: Boolean) {
-        Log.i(TAG, "setBluetoothEnabled: ")
+        Log.i(TAG, "setBluetoothEnabled: $enabled")
         _deviceState.update { it.copy(isBluetoothEnabled = enabled) }
         if (!enabled) {
             disconnect()

@@ -1,4 +1,4 @@
-﻿package com.nirvana.control.util
+package com.nirvana.control.util
 
 import android.util.Log
 import java.text.SimpleDateFormat
@@ -16,7 +16,7 @@ object AppLog {
     fun log(level: String, tag: String, msg: String, tr: Throwable? = null) {
         val time = dateFormat.format(Date())
         val stackTrace = if (tr != null) "\n" + Log.getStackTraceString(tr) else ""
-        val line = "[] [/] "
+        val line = "[$time] [$level/$tag] $msg$stackTrace"
 
         when (level) {
             "D" -> Log.d(tag, msg, tr)
