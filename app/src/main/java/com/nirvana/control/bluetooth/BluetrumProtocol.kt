@@ -1,4 +1,4 @@
-﻿package com.nirvana.control.bluetooth
+package com.nirvana.control.bluetooth
 
 import com.nirvana.control.model.AncMode
 import com.nirvana.control.model.KeyFunction
@@ -173,5 +173,12 @@ class BluetrumProtocol {
                 break
             }
         }
+    }
+
+    fun parseBatteryByte(b: Byte): Pair<Int, Boolean> {
+        val intVal = b.toInt() and 0xFF
+        val isCharging = (intVal and 0x80) != 0
+        val percentage = intVal and 0x7F
+        return Pair(percentage, isCharging)
     }
 }

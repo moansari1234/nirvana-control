@@ -23,6 +23,7 @@ fun SettingsScreen(
     onSetAutoConnect: (Boolean) -> Unit,
     onSetInEarDetection: (Boolean) -> Unit,
     onOpenScanner: () -> Unit,
+    onOpenLogs: () -> Unit,
     onRefreshInfo: () -> Unit,
     onDisconnect: () -> Unit,
     modifier: Modifier = Modifier
@@ -127,6 +128,23 @@ fun SettingsScreen(
                         Text("Discover and pair nearby Nirvana Space earbuds", style = MaterialTheme.typography.bodyMedium, color = TextSecondary)
                     }
                     Text("📡", fontSize = 20.sp)
+                }
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(DarkSurfaceVariant)
+                        .clickable { onOpenLogs() }
+                        .padding(14.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text("Diagnostic Logs", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium, color = ElectricCyan)
+                        Text("View, filter, and copy live Bluetooth connection traces", style = MaterialTheme.typography.bodyMedium, color = TextSecondary)
+                    }
+                    Text("📋", fontSize = 20.sp)
                 }
 
                 if (deviceState.isConnected) {

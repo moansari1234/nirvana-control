@@ -1,6 +1,13 @@
-package com.nirvana.control.ui.screens
+﻿package com.nirvana.control.ui.screens
 
+import android.annotation.SuppressLint
+import android.bluetooth.BluetoothDevice
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
+import android.widget.Toast
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -11,27 +18,35 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.nirvana.control.model.AncMode
 import com.nirvana.control.model.ConnectionState
 import com.nirvana.control.model.DeviceState
 import com.nirvana.control.ui.components.AncSelector
 import com.nirvana.control.ui.components.BatteryCard
 import com.nirvana.control.ui.theme.*
+import com.nirvana.control.util.AppLog
 
+@SuppressLint("MissingPermission")
 @Composable
 fun DashboardScreen(
     deviceState: DeviceState,
-    onSetAncMode: (com.nirvana.control.model.AncMode) -> Unit,
+    pairedDevices: List<BluetoothDevice> = emptyList(),
+    onSelectDevice: (BluetoothDevice) -> Unit = {},
+    onSetAncMode: (AncMode) -> Unit,
     onSetGameMode: (Boolean) -> Unit,
     onSetInEarDetection: (Boolean) -> Unit,
     onEnableBluetooth: () -> Unit,
     onOpenScanner: () -> Unit,
+    onOpenLogs: () -> Unit,
     onConnect: () -> Unit,
     onDisconnect: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
     val scrollState = rememberScrollState()
 
     Column(
@@ -126,21 +141,125 @@ fun DashboardScreen(
                 }
             }
 
-            if (!deviceState.isConnected) {
-                Button(
-                    onClick = onOpenScanner,
-                    colors = ButtonDefaults.buttonColors(containerColor = BoatRed),
-                    shape = RoundedCornerShape(12.dp)
-                ) {
-                    Text("Scan / Pair", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (!deviceState.isConnected) {
+                    Button(
+                        onClick = onOpenScanner,
+                        colors = ButtonDefaults.buttonColors(containerColor = BoatRed),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text("Radar Scan", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                    }
+                } else {
+                    OutlinedButton(
+                        onClick = onDisconnect,
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = TextSecondary),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text("Disconnect", fontSize = 12.sp)
+                    }
                 }
-            } else {
-                OutlinedButton(
-                    onClick = onDisconnect,
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = TextSecondary),
-                    shape = RoundedCornerShape(12.dp)
-                ) {
-                    Text("Disconnect", fontSize = 12.sp)
+            }
+        }
+
+        // When Disconnected: Paired Devices & Diagnostic Tools
+        if (!deviceState.isConnected) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = DarkSurfaceVariant)
+            ) {
+                Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Paired Devices ()",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = TextPrimary
+                        )
+
+                        TextButton(onClick = onConnect) {
+                            Text("Auto-Detect", color = ElectricCyan, fontSize = 12.sp)
+                        }
+                    }
+
+                    if (pairedDevices.isEmpty()) {
+                        Text(
+                            text = "No bonded Bluetooth devices found. Put earbuds in pairing mode and tap 'Radar Scan'.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = TextSecondary
+                        )
+                    } else {
+                        pairedDevices.forEach { dev ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(DarkSurface)
+                                    .clickable { onSelectDevice(dev) }
+                                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = dev.name ?: "Unknown Device",
+                                        fontWeight = FontWeight.SemiBold,
+                                        fontSize = 13.sp,
+                                        color = TextPrimary
+                                    )
+                                    Text(
+                                        text = dev.address,
+                                        fontSize = 11.sp,
+                                        color = TextSecondary
+                                    )
+                                }
+
+                                Button(
+                                    onClick = { onSelectDevice(dev) },
+                                    colors = ButtonDefaults.buttonColors(containerColor = ElectricCyan),
+                                    shape = RoundedCornerShape(8.dp),
+                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
+                                ) {
+                                    Text("Connect", color = PureBlack, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                                }
+                            }
+                        }
+                    }
+
+                    Divider(color = DarkSurface, thickness = 1.dp)
+
+                    // Diagnostic Logs Quick Buttons
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Button(
+                            onClick = {
+                                val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                                val clip = ClipData.newPlainText("Nirvana Logs", AppLog.getAllLogs())
+                                clipboard.setPrimaryClip(clip)
+                                Toast.makeText(context, "Diagnostic logs copied to clipboard! Paste in chat.", Toast.LENGTH_LONG).show()
+                            },
+                            modifier = Modifier.weight(1f),
+                            colors = ButtonDefaults.buttonColors(containerColor = DarkSurface),
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            Text("📋 Copy Logs", color = ElectricCyan, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
+
+                        OutlinedButton(
+                            onClick = onOpenLogs,
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            Text("🔍 View Logs", color = TextPrimary, fontSize = 12.sp)
+                        }
+                    }
                 }
             }
         }
@@ -161,34 +280,46 @@ fun DashboardScreen(
             onModeSelected = onSetAncMode
         )
 
-        // BEAST Mode (Low Latency Gaming)
+        // BEAST Mode Card
         Card(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(20.dp),
-            colors = CardDefaults.cardColors(containerColor = DarkSurface)
+            colors = CardDefaults.cardColors(containerColor = DarkSurfaceVariant)
         ) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(16.dp),
+                    .padding(18.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(text = "🎮", fontSize = 24.sp)
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Column {
+                Column(modifier = Modifier.weight(1f)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
-                            text = "BEAST™ Gaming Mode",
+                            text = "BEAST™ Mode",
                             style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold
+                            fontWeight = FontWeight.Bold,
+                            color = if (deviceState.gameMode) BoatRed else TextPrimary
                         )
-                        Text(
-                            text = if (deviceState.gameMode) "60ms Ultra-Low Latency active" else "Standard Latency",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = if (deviceState.gameMode) BoatRed else TextSecondary
-                        )
+                        if (deviceState.gameMode) {
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "LOW LATENCY",
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = BoatRed,
+                                modifier = Modifier
+                                    .background(BoatRed.copy(alpha = 0.2f), RoundedCornerShape(4.dp))
+                                    .padding(horizontal = 6.dp, vertical = 2.dp)
+                            )
+                        }
                     }
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "Reduces audio latency for competitive gaming and video sync",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = TextSecondary
+                    )
                 }
 
                 Switch(
@@ -197,8 +328,7 @@ fun DashboardScreen(
                     colors = SwitchDefaults.colors(
                         checkedThumbColor = PureBlack,
                         checkedTrackColor = BoatRed,
-                        uncheckedThumbColor = TextSecondary,
-                        uncheckedTrackColor = DarkSurfaceVariant
+                        uncheckedTrackColor = DarkSurface
                     )
                 )
             }
@@ -208,30 +338,27 @@ fun DashboardScreen(
         Card(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(20.dp),
-            colors = CardDefaults.cardColors(containerColor = DarkSurface)
+            colors = CardDefaults.cardColors(containerColor = DarkSurfaceVariant)
         ) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(16.dp),
+                    .padding(18.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(text = "👂", fontSize = 24.sp)
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Column {
-                        Text(
-                            text = "In-Ear Detection",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                        Text(
-                            text = if (deviceState.inEarDetection) "Auto-pause when removed" else "Disabled",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = TextSecondary
-                        )
-                    }
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "In-Ear Detection",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "Auto-pause media when either earbud is removed",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = TextSecondary
+                    )
                 }
 
                 Switch(
@@ -240,8 +367,7 @@ fun DashboardScreen(
                     colors = SwitchDefaults.colors(
                         checkedThumbColor = PureBlack,
                         checkedTrackColor = ElectricCyan,
-                        uncheckedThumbColor = TextSecondary,
-                        uncheckedTrackColor = DarkSurfaceVariant
+                        uncheckedTrackColor = DarkSurface
                     )
                 )
             }

@@ -3,15 +3,16 @@ package com.nirvana.control.bluetooth
 import android.annotation.SuppressLint
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
+import android.bluetooth.BluetoothManager
 import android.bluetooth.BluetoothSocket
 import android.content.Context
-import com.nirvana.control.util.AppLog as Log
 import com.nirvana.control.model.AncMode
 import com.nirvana.control.model.ConnectionState
 import com.nirvana.control.model.DeviceState
 import com.nirvana.control.model.KeyFunction
 import com.nirvana.control.model.SpatialAudioMode
 import com.nirvana.control.model.TouchGesture
+import com.nirvana.control.util.AppLog as Log
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -25,18 +26,18 @@ import kotlinx.coroutines.launch
 import java.io.InputStream
 import java.io.OutputStream
 import java.io.IOException
+import java.util.UUID
 
 class BluetrumSppManager private constructor(private val context: Context) {
     companion object {
         private const val TAG = "BluetrumSppManager"
 
-        @SuppressLint("StaticFieldLeak")
         @Volatile
-        private var INSTANCE: BluetrumSppManager? = null
+        private var instance: BluetrumSppManager? = null
 
         fun getInstance(context: Context): BluetrumSppManager {
-            return INSTANCE ?: synchronized(this) {
-                INSTANCE ?: BluetrumSppManager(context.applicationContext).also { INSTANCE = it }
+            return instance ?: synchronized(this) {
+                instance ?: BluetrumSppManager(context.applicationContext).also { instance = it }
             }
         }
     }
@@ -58,38 +59,77 @@ class BluetrumSppManager private constructor(private val context: Context) {
         if (_deviceState.value.connectionState == ConnectionState.CONNECTING ||
             _deviceState.value.connectionState == ConnectionState.CONNECTED
         ) {
-            if (_deviceState.value.deviceAddress == device.address) return
+            if (_deviceState.value.deviceAddress == device.address && socket?.isConnected == true) {
+                Log.i(TAG, "Already connected to  ()")
+                return
+            }
             disconnect()
         }
+
+        val devName = device.name ?: "boAt Nirvana Space"
+        Log.i(TAG, "Starting connection sequence to '' []")
 
         _deviceState.update {
             it.copy(
                 connectionState = ConnectionState.CONNECTING,
-                deviceName = device.name ?: "boAt Nirvana Space",
+                deviceName = devName,
                 deviceAddress = device.address
             )
         }
 
         scope.launch {
+            // Crucial: Cancel active Bluetooth discovery prior to RFCOMM connection
             try {
-                Log.d(TAG, "Attempting SPP connection to  using default UUID...")
-                var connectedSocket: BluetoothSocket? = null
-                
-                // Try Default SPP UUID first
-                try {
-                    connectedSocket = device.createRfcommSocketToServiceRecord(BluetrumConstants.DEFAULT_SPP_UUID)
-                    connectedSocket.connect()
-                } catch (e: Exception) {
-                    Log.w(TAG, "Standard SPP failed: . Trying custom Bluetrum UUID...")
-                    try {
-                        connectedSocket = device.createRfcommSocketToServiceRecord(BluetrumConstants.CUSTOM_SPP_UUID)
-                        connectedSocket.connect()
-                    } catch (e2: Exception) {
-                        Log.e(TAG, "Fallback SPP failed: ")
-                        throw e2
-                    }
-                }
+                val btManager = context.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager
+                btManager?.adapter?.cancelDiscovery()
+                Log.d(TAG, "Discovery cancelled prior to RFCOMM connection")
+            } catch (e: Exception) {
+                Log.w(TAG, "Could not cancel discovery: ")
+            }
 
+            var connectedSocket: BluetoothSocket? = null
+            var connectedMethod = ""
+
+            val connectionAttempts = listOf(
+                "Insecure SPP (Default UUID)" to { device.createInsecureRfcommSocketToServiceRecord(BluetrumConstants.DEFAULT_SPP_UUID) },
+                "Secure SPP (Default UUID)" to { device.createRfcommSocketToServiceRecord(BluetrumConstants.DEFAULT_SPP_UUID) },
+                "Insecure Custom SPP (Bluetrum UUID)" to { device.createInsecureRfcommSocketToServiceRecord(BluetrumConstants.CUSTOM_SPP_UUID) },
+                "Secure Custom SPP (Bluetrum UUID)" to { device.createRfcommSocketToServiceRecord(BluetrumConstants.CUSTOM_SPP_UUID) },
+                "Reflection Insecure Channel 1" to {
+                    val m = device.javaClass.getMethod("createInsecureRfcommSocket", Int::class.javaPrimitiveType)
+                    m.invoke(device, 1) as BluetoothSocket
+                },
+                "Reflection Secure Channel 1" to {
+                    val m = device.javaClass.getMethod("createRfcommSocket", Int::class.javaPrimitiveType)
+                    m.invoke(device, 1) as BluetoothSocket
+                }
+            )
+
+            for ((methodName, creator) in connectionAttempts) {
+                try {
+                    Log.d(TAG, "Trying connection method: ...")
+                    val testSocket = creator()
+                    testSocket.connect()
+                    connectedSocket = testSocket
+                    connectedMethod = methodName
+                    Log.i(TAG, ">>> SUCCESS! Connected via  <<<")
+                    break
+                } catch (e: Exception) {
+                    Log.w(TAG, "Method '' failed: : ")
+                    try {
+                        // Sleep briefly between socket connection retries
+                        delay(200)
+                    } catch (ignored: Exception) {}
+                }
+            }
+
+            if (connectedSocket == null) {
+                Log.e(TAG, "All 6 connection methods failed for  []. Earbuds may need to be in ear or reconnect Bluetooth audio.")
+                disconnect()
+                return@launch
+            }
+
+            try {
                 socket = connectedSocket
                 inputStream = connectedSocket.inputStream
                 outputStream = connectedSocket.outputStream
@@ -98,20 +138,22 @@ class BluetrumSppManager private constructor(private val context: Context) {
                     it.copy(connectionState = ConnectionState.CONNECTED)
                 }
 
-                Log.i(TAG, "Successfully connected to !")
+                Log.i(TAG, "Socket streams established. Starting reader loop...")
                 startReaderLoop()
 
-                // Query full device state
+                // Query full device state from firmware
                 delay(300)
+                Log.i(TAG, "Sending initial Device Info Query...")
                 refreshDeviceInfo()
             } catch (e: Exception) {
-                Log.e(TAG, "Failed to connect: ")
+                Log.e(TAG, "Error initializing socket streams: ", e)
                 disconnect()
             }
         }
     }
 
     fun disconnect() {
+        Log.i(TAG, "Disconnecting RFCOMM socket...")
         readerJob?.cancel()
         readerJob = null
 
@@ -130,18 +172,22 @@ class BluetrumSppManager private constructor(private val context: Context) {
         _deviceState.update {
             it.copy(connectionState = ConnectionState.DISCONNECTED)
         }
+        Log.i(TAG, "Disconnected successfully.")
     }
 
     private fun startReaderLoop() {
         readerJob?.cancel()
         readerJob = scope.launch {
             val buffer = ByteArray(1024)
+            Log.d(TAG, "Reader loop active.")
             while (isActive) {
                 val stream = inputStream ?: break
                 try {
                     val bytesRead = stream.read(buffer)
                     if (bytesRead > 0) {
                         val packetBytes = buffer.copyOf(bytesRead)
+                        val hex = packetBytes.joinToString(" ") { "%02X".format(it) }
+                        Log.d(TAG, "RX RAW [ bytes]: ")
                         protocol.parseStream(packetBytes) { packet ->
                             handlePacket(packet)
                         }
@@ -158,6 +204,7 @@ class BluetrumSppManager private constructor(private val context: Context) {
     }
 
     private fun handlePacket(packet: BluetrumPacket) {
+        Log.d(TAG, "Received packet Cmd=, Type=, PayloadLen=")
         when (packet.command) {
             BluetrumConstants.CMD_DEVICE_INFO,
             BluetrumConstants.CMD_NOTIFY -> {
@@ -168,79 +215,89 @@ class BluetrumSppManager private constructor(private val context: Context) {
             BluetrumConstants.CMD_ANC_MODE -> {
                 if (packet.payload.isNotEmpty()) {
                     val mode = AncMode.fromValue(packet.payload[0])
+                    Log.i(TAG, "ANC Mode updated: ")
                     _deviceState.update { it.copy(ancMode = mode) }
                 }
             }
             BluetrumConstants.CMD_SPATIAL_AUDIO -> {
                 if (packet.payload.isNotEmpty()) {
                     val mode = SpatialAudioMode.fromValue(packet.payload[0])
+                    Log.i(TAG, "Spatial Audio Mode updated: ")
                     _deviceState.update { it.copy(spatialAudioMode = mode) }
                 }
             }
             BluetrumConstants.CMD_WORK_MODE -> {
                 if (packet.payload.isNotEmpty()) {
                     val isGameMode = packet.payload[0].toInt() == 1
+                    Log.i(TAG, "Game Mode updated: ")
                     _deviceState.update { it.copy(gameMode = isGameMode) }
+                }
+            }
+            BluetrumConstants.CMD_EQ -> {
+                if (packet.payload.size >= 10) {
+                    val gains = IntArray(10) { packet.payload[it].toInt() }
+                    Log.i(TAG, "EQ Gains updated: ")
+                    _deviceState.update { it.copy(equalizerGains = gains) }
                 }
             }
         }
     }
 
     private fun handleTlv(tag: Byte, value: ByteArray) {
+        Log.d(TAG, "TLV Tag=0x%02X, Len=${value.size}".format(tag))
         when (tag) {
             BluetrumConstants.TAG_POWER -> {
-                if (value.size >= 3) {
-                    val leftCharging = (value[0].toInt() and 0x80) != 0
-                    val leftBattery = value[0].toInt() and 0x7F
-                    val rightCharging = (value[1].toInt() and 0x80) != 0
-                    val rightBattery = value[1].toInt() and 0x7F
-                    val caseCharging = (value[2].toInt() and 0x80) != 0
-                    val caseBattery = value[2].toInt() and 0x7F
-
-                    _deviceState.update {
-                        it.copy(
-                            leftBattery = leftBattery,
-                            leftCharging = leftCharging,
-                            rightBattery = rightBattery,
-                            rightCharging = rightCharging,
-                            caseBattery = caseBattery,
-                            caseCharging = caseCharging
-                        )
-                    }
+                val left = protocol.parseBatteryByte(value.getOrElse(0) { 0 })
+                val right = protocol.parseBatteryByte(value.getOrElse(1) { 0 })
+                val case = protocol.parseBatteryByte(value.getOrElse(2) { 0 })
+                Log.i(TAG, "Battery Telemetry: L=${left.first}% (charging=${left.second}), R=${right.first}% (charging=${right.second}), Case=${case.first}% (charging=${case.second})")
+                _deviceState.update {
+                    it.copy(
+                        leftBattery = left.first,
+                        leftCharging = left.second,
+                        rightBattery = right.first,
+                        rightCharging = right.second,
+                        caseBattery = case.first,
+                        caseCharging = case.second
+                    )
                 }
             }
             BluetrumConstants.TAG_ANC_MODE -> {
                 if (value.isNotEmpty()) {
                     val mode = AncMode.fromValue(value[0])
+                    Log.i(TAG, "TLV ANC Mode: $mode")
                     _deviceState.update { it.copy(ancMode = mode) }
                 }
             }
             BluetrumConstants.TAG_SPATIAL_AUDIO_MODE -> {
                 if (value.isNotEmpty()) {
                     val mode = SpatialAudioMode.fromValue(value[0])
+                    Log.i(TAG, "TLV Spatial Audio: $mode")
                     _deviceState.update { it.copy(spatialAudioMode = mode) }
                 }
             }
             BluetrumConstants.TAG_WORK_MODE -> {
                 if (value.isNotEmpty()) {
                     val isGame = value[0].toInt() == 1
+                    Log.i(TAG, "TLV Game Mode: $isGame")
                     _deviceState.update { it.copy(gameMode = isGame) }
                 }
             }
             BluetrumConstants.TAG_IN_EAR_STATUS -> {
                 if (value.isNotEmpty()) {
                     val inEar = value[0].toInt() == 1
+                    Log.i(TAG, "TLV In-Ear Status: $inEar")
                     _deviceState.update { it.copy(inEarDetection = inEar) }
                 }
             }
             BluetrumConstants.TAG_EQ_SETTING -> {
                 if (value.size >= 10) {
-                    val gains = IntArray(10) { i -> value[i].toInt() }
+                    val gains = IntArray(10) { value[it].toInt() }
+                    Log.i(TAG, "TLV EQ: ${gains.joinToString()}")
                     _deviceState.update { it.copy(equalizerGains = gains) }
                 }
             }
             BluetrumConstants.TAG_KEY_SETTINGS -> {
-                // Key settings map
                 val mappings = _deviceState.value.keyMappings.toMutableMap()
                 var i = 0
                 while (i + 1 < value.size) {
@@ -251,6 +308,7 @@ class BluetrumSppManager private constructor(private val context: Context) {
                     }
                     i += 2
                 }
+                Log.i(TAG, "TLV Key Settings updated (${mappings.size} gestures)")
                 _deviceState.update { it.copy(keyMappings = mappings) }
             }
         }
@@ -259,10 +317,12 @@ class BluetrumSppManager private constructor(private val context: Context) {
     private fun sendBytes(bytes: ByteArray) {
         scope.launch {
             try {
+                val hex = bytes.joinToString(" ") { "%02X".format(it) }
+                Log.d(TAG, "TX RAW [${bytes.size} bytes]: $hex")
                 outputStream?.write(bytes)
                 outputStream?.flush()
             } catch (e: Exception) {
-                Log.e(TAG, "Error writing bytes: ")
+                Log.e(TAG, "Error writing bytes: ${e.message}", e)
             }
         }
     }
@@ -278,8 +338,8 @@ class BluetrumSppManager private constructor(private val context: Context) {
     }
 
     fun recenterHeadTracking() {
+        Log.i(TAG, "Sending IMU Recenter Opcode...")
         sendBytes(protocol.buildRecenterCommand())
-        _deviceState.update { it.copy(headYaw = 0f, headPitch = 0f) }
     }
 
     fun setGameMode(enabled: Boolean) {
@@ -287,8 +347,13 @@ class BluetrumSppManager private constructor(private val context: Context) {
         sendBytes(protocol.buildGameModeRequest(enabled))
     }
 
+    fun setInEarDetection(enabled: Boolean) {
+        _deviceState.update { it.copy(inEarDetection = enabled) }
+        sendBytes(protocol.buildInEarDetectRequest(enabled))
+    }
+
     fun setEqualizerGains(gains: IntArray, presetName: String = "Custom") {
-        _deviceState.update { it.copy(equalizerGains = gains, activePresetName = presetName) }
+        _deviceState.update { it.copy(equalizerGains = gains.clone(), activePresetName = presetName) }
         sendBytes(protocol.buildEqRequest(gains))
     }
 
@@ -299,11 +364,6 @@ class BluetrumSppManager private constructor(private val context: Context) {
         sendBytes(protocol.buildKeyRequest(gesture, function))
     }
 
-    fun setInEarDetection(enabled: Boolean) {
-        _deviceState.update { it.copy(inEarDetection = enabled) }
-        sendBytes(protocol.buildInEarDetectRequest(enabled))
-    }
-
     fun setAutoConnectEnabled(enabled: Boolean) {
         _deviceState.update { it.copy(autoConnectEnabled = enabled) }
     }
@@ -311,17 +371,16 @@ class BluetrumSppManager private constructor(private val context: Context) {
     fun setAccidentalTouchGuard(enabled: Boolean) {
         _deviceState.update { it.copy(accidentalTouchGuard = enabled) }
         if (enabled) {
-            // Disable single tap on both buds to prevent accidental touches
             setTouchGesture(TouchGesture.LEFT_SINGLE_TAP, KeyFunction.NONE)
             setTouchGesture(TouchGesture.RIGHT_SINGLE_TAP, KeyFunction.NONE)
         } else {
-            // Restore default Play/Pause for single tap
             setTouchGesture(TouchGesture.LEFT_SINGLE_TAP, KeyFunction.PLAY_PAUSE)
             setTouchGesture(TouchGesture.RIGHT_SINGLE_TAP, KeyFunction.PLAY_PAUSE)
         }
     }
 
     fun setBluetoothEnabled(enabled: Boolean) {
+        Log.i(TAG, "setBluetoothEnabled: ")
         _deviceState.update { it.copy(isBluetoothEnabled = enabled) }
         if (!enabled) {
             disconnect()
