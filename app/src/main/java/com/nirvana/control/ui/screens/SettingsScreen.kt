@@ -1,6 +1,7 @@
-package com.nirvana.control.ui.screens
+﻿package com.nirvana.control.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -15,6 +16,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.nirvana.control.model.DeviceState
+import com.nirvana.control.ui.components.DoubleBezelCard
 import com.nirvana.control.ui.theme.*
 
 @Composable
@@ -41,200 +43,138 @@ fun SettingsScreen(
         // Title
         Column {
             Text(
-                text = "Settings",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold
+                text = "SYSTEM ARCHITECTURE",
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 1.6.sp,
+                color = BoatRed
             )
             Text(
-                text = "Preferences, Bluetooth background wake, and device information",
-                style = MaterialTheme.typography.bodyMedium,
+                text = "Settings & Device Info",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                color = TextPrimary
+            )
+            Text(
+                text = "Preferences, hardware telemetry, and diagnostic logs",
+                fontSize = 11.sp,
                 color = TextSecondary
             )
         }
 
         // Auto-Wake & Background Control Card
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(20.dp),
-            colors = CardDefaults.cardColors(containerColor = DarkSurface)
-        ) {
-            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                Text(
-                    text = "Background & Auto-Wake",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold
-                )
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "Auto-Connect on Bluetooth Pair",
-                            style = MaterialTheme.typography.bodyLarge,
-                            fontWeight = FontWeight.Medium
-                        )
-                        Text(
-                            text = if (deviceState.autoConnectEnabled)
-                                "Wakes app and syncs battery when earbuds connect to phone"
-                            else
-                                "App stays completely dormant (0 MB RAM, 0% CPU) until opened",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = if (deviceState.autoConnectEnabled) TextSecondary else AmberWarning
-                        )
-                    }
-
-                    Switch(
-                        checked = deviceState.autoConnectEnabled,
-                        onCheckedChange = onSetAutoConnect,
-                        colors = SwitchDefaults.colors(
-                            checkedThumbColor = PureBlack,
-                            checkedTrackColor = ElectricCyan,
-                            uncheckedThumbColor = TextSecondary,
-                            uncheckedTrackColor = DarkSurfaceVariant
-                        )
+        DoubleBezelCard {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "AUTO-CONNECT ON AUDIO LINK",
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 1.2.sp,
+                        color = TextSecondary
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = if (deviceState.autoConnectEnabled)
+                            "Wakes app and establishes SPP telemetry when earbuds connect to phone"
+                        else
+                            "App remains dormant (0 MB RAM, 0% CPU) until opened",
+                        fontSize = 11.sp,
+                        color = if (deviceState.autoConnectEnabled) TextSecondary else AmberWarning
                     )
                 }
-            }
-        }
 
-        // Device Management Card
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(20.dp),
-            colors = CardDefaults.cardColors(containerColor = DarkSurface)
-        ) {
-            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text(
-                    text = "Device Management",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold
+                Switch(
+                    checked = deviceState.autoConnectEnabled,
+                    onCheckedChange = onSetAutoConnect,
+                    colors = SwitchDefaults.colors(
+                        checkedThumbColor = PureBlack,
+                        checkedTrackColor = ElectricCyan,
+                        uncheckedThumbColor = TextMuted,
+                        uncheckedTrackColor = DarkSurfaceHighlight
+                    )
                 )
-
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(DarkSurfaceVariant)
-                        .clickable { onOpenScanner() }
-                        .padding(14.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column {
-                        Text("Bluetooth Radar Scanner", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
-                        Text("Discover and pair nearby Nirvana Space earbuds", style = MaterialTheme.typography.bodyMedium, color = TextSecondary)
-                    }
-                    Text("📡", fontSize = 20.sp)
-                }
-
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(DarkSurfaceVariant)
-                        .clickable { onOpenLogs() }
-                        .padding(14.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column {
-                        Text("Diagnostic Logs", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium, color = ElectricCyan)
-                        Text("View, filter, and copy live Bluetooth connection traces", style = MaterialTheme.typography.bodyMedium, color = TextSecondary)
-                    }
-                    Text("📋", fontSize = 20.sp)
-                }
-
-                if (deviceState.isConnected) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(DarkSurfaceVariant)
-                            .clickable { onRefreshInfo() }
-                            .padding(14.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column {
-                            Text("Sync Hardware Status", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
-                            Text("Query battery levels and ANC registers", style = MaterialTheme.typography.bodyMedium, color = TextSecondary)
-                        }
-                        Text("🔄", fontSize = 20.sp)
-                    }
-
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(DarkSurfaceVariant)
-                            .clickable { onDisconnect() }
-                            .padding(14.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column {
-                            Text("Disconnect", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium, color = RedDanger)
-                            Text("Close active RFCOMM Bluetooth socket", style = MaterialTheme.typography.bodyMedium, color = TextSecondary)
-                        }
-                        Text("⏏️", fontSize = 20.sp)
-                    }
-                }
             }
         }
 
-        // Hardware & About Card
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(20.dp),
-            colors = CardDefaults.cardColors(containerColor = DarkSurfaceVariant)
-        ) {
-            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(
-                    text = "Hardware & Privacy",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
+        // Hardware & Firmware Telemetry Card
+        DoubleBezelCard {
+            Text(
+                text = "HARDWARE & FIRMWARE TELEMETRY",
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 1.2.sp,
+                color = TextSecondary
+            )
+            Spacer(modifier = Modifier.height(12.dp))
 
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text("Target Device", color = TextSecondary, fontSize = 13.sp)
-                    Text(deviceState.deviceName, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                TelemetryRow("Target Device", deviceState.deviceName)
+                TelemetryRow("MAC Address", if (deviceState.deviceAddress.isNotEmpty()) deviceState.deviceAddress else "Not Connected")
+                TelemetryRow("Audio SoC", "Bluetrum BT5.3 (Dual-Mode)")
+                TelemetryRow("Control Protocol", "Bluetrum SPP RFCOMM (Insecure)")
+                TelemetryRow("App Version", "v1.0.0 (Release Build)")
+            }
+        }
+
+        // Diagnostic Logging & Tools Card
+        DoubleBezelCard {
+            Text(
+                text = "DIAGNOSTIC TELEMETRY LOGS",
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 1.2.sp,
+                color = TextSecondary
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = "Circular 1,000-event hardware communication buffer for instant debug paste",
+                fontSize = 11.sp,
+                color = TextMuted
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Button(
+                    onClick = onOpenLogs,
+                    modifier = Modifier.weight(1f),
+                    colors = ButtonDefaults.buttonColors(containerColor = DarkSurfaceVariant),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, SpecularBorder),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Text("🔍 Open Terminal", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = TextPrimary)
                 }
 
-                if (deviceState.deviceAddress.isNotEmpty()) {
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text("MAC Address", color = TextSecondary, fontSize = 13.sp)
-                        Text(deviceState.deviceAddress, fontSize = 13.sp, color = TextSecondary)
-                    }
-                }
-
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text("Chipset Platform", color = TextSecondary, fontSize = 13.sp)
-                    Text("Bluetrum AB Series (BT 5.3)", fontWeight = FontWeight.Medium, fontSize = 13.sp)
-                }
-
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text("Transport Layer", color = TextSecondary, fontSize = 13.sp)
-                    Text("RFCOMM SPP (5-Byte Framing)", fontSize = 13.sp, color = TextSecondary)
-                }
-
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text("Privacy Mode", color = TextSecondary, fontSize = 13.sp)
-                    Text("100% Offline (Zero Trackers)", color = NeonGreen, fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                }
-
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text("Telemetry & Logs", color = TextSecondary, fontSize = 13.sp)
-                    Text("Zero Log Collection (Disabled)", color = NeonGreen, fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                }
-
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text("App Footprint", color = TextSecondary, fontSize = 13.sp)
-                    Text("< 4 MB (Replaces 162MB App)", color = ElectricCyan, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                Button(
+                    onClick = onRefreshInfo,
+                    modifier = Modifier.weight(1f),
+                    colors = ButtonDefaults.buttonColors(containerColor = DarkSurfaceVariant),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, SpecularBorder),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Text("🔄 Sync Telemetry", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = ElectricCyan)
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun TelemetryRow(label: String, value: String) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(8.dp))
+            .background(DarkSurfaceVariant)
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(text = label, fontSize = 11.sp, color = TextSecondary)
+        Text(text = value, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
     }
 }

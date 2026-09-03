@@ -1,9 +1,11 @@
 ﻿package com.nirvana.control.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
@@ -17,8 +19,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.nirvana.control.model.KeyFunction
 import com.nirvana.control.model.TouchGesture
+import com.nirvana.control.ui.components.DoubleBezelCard
 import com.nirvana.control.ui.theme.*
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun GesturesScreen(
     keyMappings: Map<TouchGesture, KeyFunction>,
@@ -43,45 +47,46 @@ fun GesturesScreen(
         // Title
         Column {
             Text(
-                text = "Touch Gesture Controls",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold
+                text = "HAPTIC SURFACE MAPPING",
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 1.6.sp,
+                color = BoatRed
             )
             Text(
-                text = "Customize touch sensor actions independently for each earbud",
-                style = MaterialTheme.typography.bodyMedium,
+                text = "Touch Gesture Studio",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                color = TextPrimary
+            )
+            Text(
+                text = "Program optical capacitive sensors per earbud",
+                fontSize = 11.sp,
                 color = TextSecondary
             )
         }
 
         // Accidental-Touch Guard Card
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(20.dp),
-            colors = CardDefaults.cardColors(containerColor = DarkSurface)
-        ) {
+        DoubleBezelCard {
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
+                modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
-                    Text(text = "🛡️", fontSize = 24.sp)
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Column {
-                        Text(
-                            text = "Accidental-Touch Guard",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                        Text(
-                            text = "Disables single-tap to prevent unintended taps when adjusting earbuds",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = TextSecondary
-                        )
-                    }
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "ACCIDENTAL TOUCH GUARD",
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 1.2.sp,
+                        color = TextSecondary
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = "Disables single-tap to eliminate inadvertent triggers when adjusting buds",
+                        fontSize = 11.sp,
+                        color = TextMuted
+                    )
                 }
 
                 Switch(
@@ -90,83 +95,98 @@ fun GesturesScreen(
                     colors = SwitchDefaults.colors(
                         checkedThumbColor = PureBlack,
                         checkedTrackColor = ElectricCyan,
-                        uncheckedThumbColor = TextSecondary,
-                        uncheckedTrackColor = DarkSurfaceVariant
+                        uncheckedThumbColor = TextMuted,
+                        uncheckedTrackColor = DarkSurfaceHighlight
                     )
                 )
             }
         }
 
-        // Left / Right Earbud Selector
+        // Left / Right Earbud Selector Track
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(14.dp))
                 .background(DarkSurfaceVariant)
-                .padding(4.dp),
-            horizontalArrangement = Arrangement.SpaceBetween
+                .border(1.dp, SpecularBorder, RoundedCornerShape(14.dp))
+                .padding(3.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             Box(
                 modifier = Modifier
                     .weight(1f)
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(if (selectedEarbudIsLeft) BoatRed else Color.Transparent)
+                    .clip(RoundedCornerShape(11.dp))
+                    .background(if (selectedEarbudIsLeft) BoatRed.copy(alpha = 0.2f) else Color.Transparent)
+                    .border(
+                        1.dp,
+                        if (selectedEarbudIsLeft) BoatRed else Color.Transparent,
+                        RoundedCornerShape(11.dp)
+                    )
                     .clickable { selectedEarbudIsLeft = true }
-                    .padding(vertical = 12.dp),
+                    .padding(vertical = 10.dp),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = "Left Earbud",
-                    fontSize = 13.sp,
+                    text = "LEFT EARBUD",
+                    fontSize = 11.sp,
                     fontWeight = if (selectedEarbudIsLeft) FontWeight.Bold else FontWeight.Medium,
-                    color = if (selectedEarbudIsLeft) PureBlack else TextSecondary
+                    letterSpacing = 0.8.sp,
+                    color = if (selectedEarbudIsLeft) TextPrimary else TextSecondary
                 )
             }
 
             Box(
                 modifier = Modifier
                     .weight(1f)
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(if (!selectedEarbudIsLeft) BoatRed else Color.Transparent)
+                    .clip(RoundedCornerShape(11.dp))
+                    .background(if (!selectedEarbudIsLeft) BoatRed.copy(alpha = 0.2f) else Color.Transparent)
+                    .border(
+                        1.dp,
+                        if (!selectedEarbudIsLeft) BoatRed else Color.Transparent,
+                        RoundedCornerShape(11.dp)
+                    )
                     .clickable { selectedEarbudIsLeft = false }
-                    .padding(vertical = 12.dp),
+                    .padding(vertical = 10.dp),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = "Right Earbud",
-                    fontSize = 13.sp,
+                    text = "RIGHT EARBUD",
+                    fontSize = 11.sp,
                     fontWeight = if (!selectedEarbudIsLeft) FontWeight.Bold else FontWeight.Medium,
-                    color = if (!selectedEarbudIsLeft) PureBlack else TextSecondary
+                    letterSpacing = 0.8.sp,
+                    color = if (!selectedEarbudIsLeft) TextPrimary else TextSecondary
                 )
             }
         }
 
-        // Gestures List for selected earbud
+        // Gestures List Card
         val gesturesForSelectedBud = if (selectedEarbudIsLeft) {
             listOf(
                 TouchGesture.LEFT_SINGLE_TAP to "Single Tap",
                 TouchGesture.LEFT_DOUBLE_TAP to "Double Tap",
                 TouchGesture.LEFT_TRIPLE_TAP to "Triple Tap",
-                TouchGesture.LEFT_LONG_PRESS to "Long Press / Hold"
+                TouchGesture.LEFT_LONG_PRESS to "Long Press & Hold"
             )
         } else {
             listOf(
                 TouchGesture.RIGHT_SINGLE_TAP to "Single Tap",
                 TouchGesture.RIGHT_DOUBLE_TAP to "Double Tap",
                 TouchGesture.RIGHT_TRIPLE_TAP to "Triple Tap",
-                TouchGesture.RIGHT_LONG_PRESS to "Long Press / Hold"
+                TouchGesture.RIGHT_LONG_PRESS to "Long Press & Hold"
             )
         }
 
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(20.dp),
-            colors = CardDefaults.cardColors(containerColor = DarkSurface)
-        ) {
-            Column(
-                modifier = Modifier.padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(14.dp)
-            ) {
+        DoubleBezelCard {
+            Text(
+                text = if (selectedEarbudIsLeft) "LEFT BUD ASSIGNMENTS" else "RIGHT BUD ASSIGNMENTS",
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 1.2.sp,
+                color = TextSecondary
+            )
+            Spacer(modifier = Modifier.height(10.dp))
+
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 gesturesForSelectedBud.forEach { (gesture, label) ->
                     val currentFunction = keyMappings[gesture] ?: KeyFunction.NONE
                     val isSingleTapDisabled = (gesture == TouchGesture.LEFT_SINGLE_TAP || gesture == TouchGesture.RIGHT_SINGLE_TAP) && accidentalTouchGuard
@@ -176,6 +196,7 @@ fun GesturesScreen(
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(12.dp))
                             .background(DarkSurfaceVariant)
+                            .border(1.dp, SpecularBorder, RoundedCornerShape(12.dp))
                             .clickable(enabled = !isSingleTapDisabled) { activeGestureToEdit = gesture }
                             .padding(14.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -184,146 +205,111 @@ fun GesturesScreen(
                         Column {
                             Text(
                                 text = label,
-                                style = MaterialTheme.typography.titleMedium,
+                                fontSize = 13.sp,
                                 fontWeight = FontWeight.SemiBold,
                                 color = if (isSingleTapDisabled) TextMuted else TextPrimary
                             )
                             if (isSingleTapDisabled) {
                                 Text(
-                                    text = "Disabled by Accidental-Touch Guard",
-                                    style = MaterialTheme.typography.bodyMedium,
+                                    text = "Locked by Touch Guard",
+                                    fontSize = 10.sp,
                                     color = AmberWarning
                                 )
                             }
                         }
 
-                        Surface(
-                            shape = RoundedCornerShape(8.dp),
-                            color = if (isSingleTapDisabled) DarkSurfaceHighlight else BoatRed.copy(alpha = 0.15f)
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(
+                                    if (isSingleTapDisabled) DarkSurfaceHighlight else BoatRed.copy(alpha = 0.15f)
+                                )
+                                .border(
+                                    1.dp,
+                                    if (isSingleTapDisabled) SpecularBorder else BoatRed.copy(alpha = 0.4f),
+                                    RoundedCornerShape(8.dp)
+                                )
+                                .padding(horizontal = 10.dp, vertical = 5.dp)
                         ) {
                             Text(
-                                text = if (isSingleTapDisabled) "Disabled" else currentFunction.label,
+                                text = if (isSingleTapDisabled) "DISABLED" else currentFunction.label.uppercase(),
                                 color = if (isSingleTapDisabled) TextMuted else BoatRed,
-                                fontSize = 12.sp,
+                                fontSize = 10.sp,
                                 fontWeight = FontWeight.Bold,
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                                letterSpacing = 0.8.sp
                             )
                         }
-                    }
-                }
-            }
-        }
-
-        // Quick Preset Templates Card
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(20.dp),
-            colors = CardDefaults.cardColors(containerColor = DarkSurfaceVariant)
-        ) {
-            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(
-                    text = "Quick Gesture Profiles",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
-                Text(
-                    text = "Apply recommended button assignments for all gestures",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = TextSecondary
-                )
-
-                Spacer(modifier = Modifier.height(6.dp))
-
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    OutlinedButton(
-                        onClick = {
-                            onSetGesture(TouchGesture.LEFT_SINGLE_TAP, KeyFunction.PLAY_PAUSE)
-                            onSetGesture(TouchGesture.RIGHT_SINGLE_TAP, KeyFunction.PLAY_PAUSE)
-                            onSetGesture(TouchGesture.LEFT_DOUBLE_TAP, KeyFunction.PREVIOUS_TRACK)
-                            onSetGesture(TouchGesture.RIGHT_DOUBLE_TAP, KeyFunction.NEXT_TRACK)
-                            onSetGesture(TouchGesture.LEFT_TRIPLE_TAP, KeyFunction.VOLUME_DOWN)
-                            onSetGesture(TouchGesture.RIGHT_TRIPLE_TAP, KeyFunction.VOLUME_UP)
-                            onSetGesture(TouchGesture.LEFT_LONG_PRESS, KeyFunction.ANC_MODE)
-                            onSetGesture(TouchGesture.RIGHT_LONG_PRESS, KeyFunction.ANC_MODE)
-                        },
-                        shape = RoundedCornerShape(10.dp),
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Text("Media Profile", fontSize = 11.sp)
-                    }
-
-                    OutlinedButton(
-                        onClick = {
-                            onSetGesture(TouchGesture.LEFT_DOUBLE_TAP, KeyFunction.ANC_MODE)
-                            onSetGesture(TouchGesture.RIGHT_DOUBLE_TAP, KeyFunction.BEAST_MODE)
-                            onSetGesture(TouchGesture.LEFT_TRIPLE_TAP, KeyFunction.VOICE_ASSISTANT)
-                            onSetGesture(TouchGesture.RIGHT_TRIPLE_TAP, KeyFunction.SPATIAL_AUDIO)
-                            onSetGesture(TouchGesture.LEFT_LONG_PRESS, KeyFunction.ANC_MODE)
-                            onSetGesture(TouchGesture.RIGHT_LONG_PRESS, KeyFunction.ANC_MODE)
-                        },
-                        shape = RoundedCornerShape(10.dp),
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Text("Gamer Profile", fontSize = 11.sp)
                     }
                 }
             }
         }
     }
 
-    // Action Picker Dialog
-    activeGestureToEdit?.let { gesture ->
-        AlertDialog(
+    // Modal Bottom Sheet for selecting function
+    if (activeGestureToEdit != null) {
+        val gesture = activeGestureToEdit!!
+        ModalBottomSheet(
             onDismissRequest = { activeGestureToEdit = null },
             containerColor = DarkSurface,
-            title = {
+            contentColor = TextPrimary
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(20.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
                 Text(
-                    text = "Select Action for ",
+                    text = "SELECT ACTION",
+                    fontSize = 10.sp,
                     fontWeight = FontWeight.Bold,
-                    color = TextPrimary
+                    letterSpacing = 1.4.sp,
+                    color = BoatRed
                 )
-            },
-            text = {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(max = 350.dp)
-                        .verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    KeyFunction.entries.forEach { func ->
-                        val isSelected = keyMappings[gesture] == func
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(if (isSelected) BoatRed.copy(alpha = 0.2f) else Color.Transparent)
-                                .clickable {
-                                    onSetGesture(gesture, func)
-                                    activeGestureToEdit = null
-                                }
-                                .padding(vertical = 10.dp, horizontal = 12.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = func.label,
-                                style = MaterialTheme.typography.bodyLarge,
-                                color = if (isSelected) BoatRed else TextPrimary
-                            )
-                            if (isSelected) {
-                                Text("✓", color = BoatRed, fontWeight = FontWeight.Bold)
+                Text(
+                    text = gesture.label,
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold
+                )
+
+                Spacer(modifier = Modifier.height(6.dp))
+
+                KeyFunction.entries.forEach { func ->
+                    val isCurrent = keyMappings[gesture] == func
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(if (isCurrent) BoatRed.copy(alpha = 0.18f) else DarkSurfaceVariant)
+                            .border(1.dp, if (isCurrent) BoatRed else SpecularBorder, RoundedCornerShape(12.dp))
+                            .clickable {
+                                onSetGesture(gesture, func)
+                                activeGestureToEdit = null
                             }
+                            .padding(14.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = func.label,
+                            fontSize = 13.sp,
+                            fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Medium,
+                            color = if (isCurrent) TextPrimary else TextSecondary
+                        )
+
+                        if (isCurrent) {
+                            Box(
+                                modifier = Modifier
+                                    .size(8.dp)
+                                    .clip(CircleShape)
+                                    .background(BoatRed)
+                            )
                         }
                     }
                 }
-            },
-            confirmButton = {},
-            dismissButton = {
-                TextButton(onClick = { activeGestureToEdit = null }) {
-                    Text("Cancel", color = TextMuted)
-                }
+
+                Spacer(modifier = Modifier.height(20.dp))
             }
-        )
+        }
     }
 }
