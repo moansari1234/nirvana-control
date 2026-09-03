@@ -1,13 +1,16 @@
-﻿package com.nirvana.control.ui.screens
+package com.nirvana.control.ui.screens
 
 import android.media.AudioAttributes
 import android.media.AudioFormat
 import android.media.AudioTrack
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
@@ -15,11 +18,17 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.nirvana.control.model.*
+import com.nirvana.control.ui.components.DoubleBezelCard
 import com.nirvana.control.ui.theme.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -49,32 +58,45 @@ fun EqualizerScreen(
     ) {
         // Title & Header
         Row(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 4.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column {
                 Text(
-                    text = "10-Band Hardware EQ",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold
+                    text = "HARDWARE DSP",
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 1.6.sp,
+                    color = BoatRed
                 )
                 Text(
-                    text = "Direct DSP Parametric Equalizer (-6dB to +6dB)",
-                    style = MaterialTheme.typography.bodyMedium,
+                    text = "Acoustic Equalizer",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = TextPrimary
+                )
+                Text(
+                    text = "Direct 10-band hardware filter (-6dB to +6dB)",
+                    fontSize = 11.sp,
                     color = TextSecondary
                 )
             }
 
-            TextButton(
+            OutlinedButton(
                 onClick = {
                     val flat = IntArray(10) { 0 }
                     editableGains = flat
                     selectedPreset = "Balanced"
                     onApplyGains(flat, "Balanced")
-                }
+                },
+                border = androidx.compose.foundation.BorderStroke(1.dp, SpecularBorder),
+                shape = RoundedCornerShape(10.dp),
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
             ) {
-                Text("Reset", color = TextSecondary, fontSize = 13.sp)
+                Text("RESET FLAT", fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.8.sp, color = TextSecondary)
             }
         }
 
@@ -87,246 +109,179 @@ fun EqualizerScreen(
         ) {
             DEFAULT_EQ_PRESETS.forEach { preset ->
                 val isSelected = selectedPreset == preset.name
-                FilterChip(
-                    selected = isSelected,
-                    onClick = {
-                        selectedPreset = preset.name
-                        editableGains = preset.gains.copyOf()
-                        onApplyGains(editableGains, preset.name)
-                    },
-                    label = {
-                        Text(
-                            text = preset.name,
-                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                            fontSize = 12.sp
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(if (isSelected) BoatRed.copy(alpha = 0.2f) else DarkSurfaceVariant)
+                        .border(
+                            1.dp,
+                            if (isSelected) BoatRed else SpecularBorder,
+                            RoundedCornerShape(12.dp)
                         )
-                    },
-                    colors = FilterChipDefaults.filterChipColors(
-                        selectedContainerColor = BoatRed,
-                        selectedLabelColor = PureBlack,
-                        containerColor = DarkSurfaceVariant,
-                        labelColor = TextPrimary
-                    ),
-                    shape = RoundedCornerShape(12.dp)
+                        .clickable {
+                            selectedPreset = preset.name
+                            editableGains = preset.gains.copyOf()
+                            onApplyGains(editableGains, preset.name)
+                        }
+                        .padding(horizontal = 14.dp, vertical = 8.dp)
+                ) {
+                    Text(
+                        text = preset.name.uppercase(),
+                        fontSize = 11.sp,
+                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                        letterSpacing = 0.8.sp,
+                        color = if (isSelected) TextPrimary else TextSecondary
+                    )
+                }
+            }
+        }
+
+        // Real-Time Frequency Spline Curve Card
+        DoubleBezelCard {
+            Text(
+                text = "FREQUENCY RESPONSE CURVE",
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 1.2.sp,
+                color = TextSecondary
+            )
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // Canvas Frequency Spline
+            Canvas(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(100.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(PureBlack)
+                    .border(1.dp, SpecularBorder, RoundedCornerShape(12.dp))
+            ) {
+                val w = size.width
+                val h = size.height
+                val midY = h / 2f
+
+                // Draw 0dB Grid Line
+                drawLine(
+                    color = Color(0x1FFFFFFF),
+                    start = Offset(0f, midY),
+                    end = Offset(w, midY),
+                    strokeWidth = 1.dp.toPx()
                 )
+
+                // Build Spline Path from 10 bands
+                val path = Path()
+                val fillPath = Path()
+                fillPath.moveTo(0f, h)
+
+                val step = w / 9f
+                for (i in 0..9) {
+                    val gain = editableGains.getOrElse(i) { 0 }
+                    // Gain is -6 to +6. Map to 0..h
+                    val y = midY - (gain / 6f) * (midY * 0.8f)
+                    val x = i * step
+
+                    if (i == 0) {
+                        path.moveTo(x, y)
+                        fillPath.lineTo(x, y)
+                    } else {
+                        val prevGain = editableGains.getOrElse(i - 1) { 0 }
+                        val prevY = midY - (prevGain / 6f) * (midY * 0.8f)
+                        val prevX = (i - 1) * step
+                        val cx = (prevX + x) / 2f
+                        path.cubicTo(cx, prevY, cx, y, x, y)
+                        fillPath.cubicTo(cx, prevY, cx, y, x, y)
+                    }
+                }
+
+                fillPath.lineTo(w, h)
+                fillPath.close()
+
+                // Gradient Fill Under Curve
+                drawPath(
+                    path = fillPath,
+                    brush = Brush.verticalGradient(
+                        colors = listOf(BoatRed.copy(alpha = 0.25f), Color.Transparent),
+                        startY = 0f,
+                        endY = h
+                    )
+                )
+
+                // Spline Outline
+                drawPath(
+                    path = path,
+                    color = BoatRed,
+                    style = Stroke(width = 2.dp.toPx(), cap = StrokeCap.Round)
+                )
+
+                // Draw Band Control Dots
+                for (i in 0..9) {
+                    val gain = editableGains.getOrElse(i) { 0 }
+                    val y = midY - (gain / 6f) * (midY * 0.8f)
+                    val x = i * step
+                    drawCircle(color = PureBlack, radius = 4.dp.toPx(), center = Offset(x, y))
+                    drawCircle(color = ElectricCyan, radius = 2.5.dp.toPx(), center = Offset(x, y))
+                }
             }
         }
 
         // 10-Band Sliders Card
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(20.dp),
-            colors = CardDefaults.cardColors(containerColor = DarkSurface)
-        ) {
-            Column(
-                modifier = Modifier.padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                EQ_BAND_LABELS.forEachIndexed { index, freqLabel ->
-                    val gainValue = if (index < editableGains.size) editableGains[index] else 0
+        DoubleBezelCard {
+            Text(
+                text = "DSP FREQUENCY BANDS",
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 1.2.sp,
+                color = TextSecondary
+            )
+            Spacer(modifier = Modifier.height(14.dp))
+
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                for (i in 0..9) {
+                    val freq = EQ_BAND_LABELS.getOrElse(i) { "${i + 1}" }
+                    val gain = editableGains.getOrElse(i) { 0 }
 
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = freqLabel,
-                            style = MaterialTheme.typography.labelMedium,
+                            text = freq,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
                             color = TextPrimary,
-                            modifier = Modifier.width(52.dp)
+                            modifier = Modifier.width(55.dp)
                         )
 
                         Slider(
-                            value = gainValue.toFloat(),
-                            onValueChange = { newFloat ->
-                                val newGains = editableGains.copyOf()
-                                newGains[index] = newFloat.toInt()
-                                editableGains = newGains
+                            value = gain.toFloat(),
+                            onValueChange = { newVal ->
                                 selectedPreset = "Custom"
-                                onApplyGains(newGains, "Custom")
+                                val updated = editableGains.copyOf()
+                                updated[i] = newVal.toInt()
+                                editableGains = updated
+                                onApplyGains(updated, "Custom")
                             },
                             valueRange = -6f..6f,
                             steps = 11,
                             modifier = Modifier.weight(1f),
                             colors = SliderDefaults.colors(
-                                thumbColor = BoatRed,
-                                activeTrackColor = BoatRed,
+                                thumbColor = ElectricCyan,
+                                activeTrackColor = ElectricCyan,
                                 inactiveTrackColor = DarkSurfaceHighlight
                             )
                         )
 
                         Text(
-                            text = if (gainValue > 0) "+dB" else "dB",
-                            style = MaterialTheme.typography.labelMedium,
+                            text = if (gain > 0) "+${gain}dB" else "${gain}dB",
+                            fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
-                            color = if (gainValue > 0) BoatRed else if (gainValue < 0) ElectricCyan else TextSecondary,
-                            modifier = Modifier.width(44.dp),
+                            color = if (gain != 0) ElectricCyan else TextSecondary,
+                            modifier = Modifier.width(48.dp),
                             textAlign = androidx.compose.ui.text.style.TextAlign.End
                         )
                     }
                 }
             }
         }
-
-        // Guided Hearing Calibration Card
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(20.dp))
-                .clickable { showHearingTestDialog = true },
-            colors = CardDefaults.cardColors(containerColor = DarkSurfaceVariant)
-        ) {
-            Row(
-                modifier = Modifier.padding(16.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(text = "🎯", fontSize = 28.sp)
-                Spacer(modifier = Modifier.width(14.dp))
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = "Hearing Calibration Mode",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = ElectricCyan
-                    )
-                    Text(
-                        text = "Run a guided frequency test to create your personalized hearing EQ profile",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = TextSecondary
-                    )
-                }
-                Text("Start →", color = ElectricCyan, fontWeight = FontWeight.Bold, fontSize = 13.sp)
-            }
-        }
     }
-
-    if (showHearingTestDialog) {
-        HearingCalibrationDialog(
-            onDismiss = { showHearingTestDialog = false },
-            onComplete = { calibratedGains ->
-                editableGains = calibratedGains
-                selectedPreset = "Hearing Profile"
-                onApplyGains(calibratedGains, "Hearing Profile")
-                showHearingTestDialog = false
-            }
-        )
-    }
-}
-
-@Composable
-private fun HearingCalibrationDialog(
-    onDismiss: () -> Unit,
-    onComplete: (IntArray) -> Unit
-) {
-    val coroutineScope = rememberCoroutineScope()
-    val testFrequencies = listOf(250, 500, 1000, 2000, 4000, 8000)
-    var stepIndex by remember { mutableStateOf(0) }
-    val results = remember { mutableStateListOf(0, 0, 0, 0, 0, 0) }
-
-    fun playTone(freqHz: Int) {
-        coroutineScope.launch(Dispatchers.Default) {
-            try {
-                val sampleRate = 44100
-                val durationSeconds = 0.5
-                val numSamples = (durationSeconds * sampleRate).toInt()
-                val buffer = ShortArray(numSamples)
-
-                for (i in 0 until numSamples) {
-                    val angle = 2.0 * Math.PI * i / (sampleRate / freqHz)
-                    buffer[i] = (sin(angle) * Short.MAX_VALUE * 0.3).toInt().toShort()
-                }
-
-                val track = AudioTrack.Builder()
-                    .setAudioAttributes(
-                        AudioAttributes.Builder()
-                            .setUsage(AudioAttributes.USAGE_MEDIA)
-                            .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
-                            .build()
-                    )
-                    .setAudioFormat(
-                        AudioFormat.Builder()
-                            .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
-                            .setSampleRate(sampleRate)
-                            .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
-                            .build()
-                    )
-                    .setBufferSizeInBytes(buffer.size * 2)
-                    .build()
-
-                track.write(buffer, 0, buffer.size)
-                track.play()
-            } catch (e: Exception) {
-                // Ignore audio generation failures
-            }
-        }
-    }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = DarkSurface,
-        title = {
-            Text(
-                text = "Hearing Calibration (Step /)",
-                fontWeight = FontWeight.Bold,
-                color = TextPrimary
-            )
-        },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                val currentFreq = testFrequencies[stepIndex]
-                Text(
-                    text = "Testing frequency: Hz\nTap 'Play Tone', then rate how clearly you hear it.",
-                    color = TextSecondary,
-                    fontSize = 13.sp
-                )
-
-                Button(
-                    onClick = { playTone(currentFreq) },
-                    colors = ButtonDefaults.buttonColors(containerColor = ElectricCyan),
-                    shape = RoundedCornerShape(10.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text("🔊 Play Tone (Hz)", color = PureBlack, fontWeight = FontWeight.Bold)
-                }
-
-                Text("Clarity level:", style = MaterialTheme.typography.labelMedium, color = TextPrimary)
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    listOf(
-                        "Faint (-2dB)" to 3,
-                        "Normal (0dB)" to 1,
-                        "Loud (+2dB)" to 0
-                    ).forEach { (label, boost) ->
-                        OutlinedButton(
-                            onClick = {
-                                results[stepIndex] = boost
-                                if (stepIndex < testFrequencies.size - 1) {
-                                    stepIndex++
-                                } else {
-                                    // Generate 10-band profile
-                                    val finalGains = intArrayOf(
-                                        results[0], results[0], results[0],
-                                        results[1], results[2], results[2],
-                                        results[3], results[4], results[5], results[5]
-                                    )
-                                    onComplete(finalGains)
-                                }
-                            },
-                            shape = RoundedCornerShape(8.dp)
-                        ) {
-                            Text(label, fontSize = 11.sp)
-                        }
-                    }
-                }
-            }
-        },
-        confirmButton = {},
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel", color = TextMuted)
-            }
-        }
-    )
 }
