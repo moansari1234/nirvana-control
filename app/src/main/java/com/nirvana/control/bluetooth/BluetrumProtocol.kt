@@ -128,13 +128,13 @@ class BluetrumProtocol {
 
     fun buildDeviceInfoQuery(): ByteArray {
         val tagsToQuery = byteArrayOf(
-            BluetrumConstants.TAG_POWER,
-            BluetrumConstants.TAG_ANC_MODE,
-            BluetrumConstants.TAG_SPATIAL_AUDIO_MODE,
-            BluetrumConstants.TAG_WORK_MODE,
-            BluetrumConstants.TAG_EQ_SETTING,
-            BluetrumConstants.TAG_IN_EAR_STATUS,
-            BluetrumConstants.TAG_KEY_SETTINGS
+            BluetrumConstants.TAG_POWER, 0,
+            BluetrumConstants.TAG_ANC_MODE, 0,
+            BluetrumConstants.TAG_SPATIAL_AUDIO_MODE, 0,
+            BluetrumConstants.TAG_WORK_MODE, 0,
+            BluetrumConstants.TAG_EQ_SETTING, 0,
+            BluetrumConstants.TAG_IN_EAR_STATUS, 0,
+            BluetrumConstants.TAG_KEY_SETTINGS, 0
         )
         return buildFrame(BluetrumConstants.CMD_DEVICE_INFO, BluetrumConstants.TYPE_REQUEST, tagsToQuery)
     }

@@ -1,4 +1,4 @@
-﻿package com.nirvana.control.bluetooth
+package com.nirvana.control.bluetooth
 
 import android.annotation.SuppressLint
 import android.bluetooth.BluetoothAdapter
@@ -110,6 +110,16 @@ class BluetrumSppManager private constructor(private val context: Context) {
 
             // 3. Build candidate connection creators
             val connectionAttempts = mutableListOf<Pair<String, () -> BluetoothSocket>>()
+
+            // Try any SDP UUIDs directly advertised by this device first
+            val sdpUuids = device.uuids?.map { it.uuid } ?: emptyList()
+            for (u in sdpUuids) {
+                if (u != BluetrumConstants.CUSTOM_SPP_UUID && u != BluetrumConstants.DEFAULT_SPP_UUID) {
+                    connectionAttempts.add("SDP Advertised UUID ($u)" to {
+                        device.createInsecureRfcommSocketToServiceRecord(u)
+                    })
+                }
+            }
 
             // Insecure & Secure with Custom Bluetrum UUID (Official boAt Nirvana Space UUID!)
             connectionAttempts.add("Insecure Custom SPP (${BluetrumConstants.CUSTOM_SPP_UUID})" to {

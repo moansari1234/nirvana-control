@@ -219,13 +219,22 @@ fun DashboardScreen(
                                     )
                                 }
 
+                                val isThisConnecting = deviceState.connectionState == ConnectionState.CONNECTING &&
+                                        deviceState.deviceAddress == dev.address
+
                                 Button(
                                     onClick = { onSelectDevice(dev) },
+                                    enabled = !isThisConnecting,
                                     colors = ButtonDefaults.buttonColors(containerColor = ElectricCyan),
                                     shape = RoundedCornerShape(8.dp),
                                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
                                 ) {
-                                    Text("Connect", color = PureBlack, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                                    Text(
+                                        text = if (isThisConnecting) "Connecting..." else "Connect",
+                                        color = PureBlack,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 11.sp
+                                    )
                                 }
                             }
                         }
