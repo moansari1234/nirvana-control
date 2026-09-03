@@ -1,13 +1,18 @@
 ﻿package com.nirvana.control.ui.components
 
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -24,23 +29,38 @@ fun BatteryCard(
     caseCharging: Boolean,
     modifier: Modifier = Modifier
 ) {
-    Card(
+    DoubleBezelCard(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = DarkSurface)
+        innerPadding = PaddingValues(vertical = 18.dp, horizontal = 12.dp)
     ) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 20.dp, horizontal = 12.dp),
+            modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            BatteryItem(label = "Left Bud", percent = leftBattery, isCharging = leftCharging)
-            Box(modifier = Modifier.height(44.dp).width(1.dp).background(DividerColor))
-            BatteryItem(label = "Case", percent = caseBattery, isCharging = caseCharging)
-            Box(modifier = Modifier.height(44.dp).width(1.dp).background(DividerColor))
-            BatteryItem(label = "Right Bud", percent = rightBattery, isCharging = rightCharging)
+            BatteryItem(label = "LEFT BUD", percent = leftBattery, isCharging = leftCharging)
+            Box(
+                modifier = Modifier
+                    .height(44.dp)
+                    .width(1.dp)
+                    .background(
+                        Brush.verticalGradient(
+                            listOf(Color.Transparent, SpecularBorder, Color.Transparent)
+                        )
+                    )
+            )
+            BatteryItem(label = "CHARGING CASE", percent = caseBattery, isCharging = caseCharging)
+            Box(
+                modifier = Modifier
+                    .height(44.dp)
+                    .width(1.dp)
+                    .background(
+                        Brush.verticalGradient(
+                            listOf(Color.Transparent, SpecularBorder, Color.Transparent)
+                        )
+                    )
+            )
+            BatteryItem(label = "RIGHT BUD", percent = rightBattery, isCharging = rightCharging)
         }
     }
 }
@@ -57,10 +77,12 @@ private fun BatteryItem(
     ) {
         Text(
             text = label,
-            style = MaterialTheme.typography.labelMedium,
+            fontSize = 9.sp,
+            fontWeight = FontWeight.SemiBold,
+            letterSpacing = 1.2.sp,
             color = TextSecondary
         )
-        Spacer(modifier = Modifier.height(6.dp))
+        Spacer(modifier = Modifier.height(8.dp))
         Row(
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -72,42 +94,57 @@ private fun BatteryItem(
             }
 
             Text(
-                text = if (percent >= 0) "%" else "--",
-                fontSize = 20.sp,
+                text = if (percent >= 0) "${percent}%" else "--",
+                fontSize = 22.sp,
                 fontWeight = FontWeight.Bold,
                 color = if (percent >= 0) TextPrimary else TextMuted
             )
 
             if (isCharging) {
                 Spacer(modifier = Modifier.width(4.dp))
-                Text(
-                    text = "⚡",
-                    fontSize = 14.sp,
-                    color = AmberWarning
-                )
+                Box(
+                    modifier = Modifier
+                        .size(14.dp)
+                        .clip(CircleShape)
+                        .background(AmberWarning.copy(alpha = 0.2f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "⚡",
+                        fontSize = 9.sp,
+                        color = AmberWarning
+                    )
+                }
             }
         }
-        Spacer(modifier = Modifier.height(4.dp))
-        // Compact visual level bar
+
+        Spacer(modifier = Modifier.height(6.dp))
+
+        // Luxury Horizontal Gauge
+        val animatedProgress by animateFloatAsState(
+            targetValue = if (percent >= 0) (percent.coerceIn(0, 100) / 100f) else 0f,
+            label = "batteryProgress"
+        )
+
         Box(
             modifier = Modifier
-                .width(42.dp)
+                .width(48.dp)
                 .height(4.dp)
                 .clip(RoundedCornerShape(2.dp))
                 .background(DarkSurfaceHighlight)
         ) {
-            val progress = (percent.coerceIn(0, 100) / 100f)
+            val gaugeBrush = when {
+                percent <= 20 -> Brush.horizontalGradient(listOf(RedDanger, AmberWarning))
+                percent <= 40 -> Brush.horizontalGradient(listOf(AmberWarning, NeonGreen))
+                else -> Brush.horizontalGradient(listOf(ElectricCyan, NeonGreen))
+            }
+
             Box(
                 modifier = Modifier
                     .fillMaxHeight()
-                    .fillMaxWidth(if (percent >= 0) progress else 0f)
-                    .background(
-                        when {
-                            percent <= 20 -> RedDanger
-                            percent <= 40 -> AmberWarning
-                            else -> NeonGreen
-                        }
-                    )
+                    .fillMaxWidth(animatedProgress)
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(gaugeBrush)
             )
         }
     }
